@@ -1,13 +1,13 @@
 -rdb file format: binary
 
-    key_byte_size    key     value_byte_size    value
-        uint_32     string         uint_32      string
+    key_byte_size    key     value_byte_size    value   expiration_timestamp
+        uint_32     string         uint_32      string          int64
 
 
 -append only file: plaint text
 
-    key_byte_size    key     value_byte_size    value
-        uint_32     string         uint_32      string
+    key_byte_size    key     value_byte_size    value   expiration_timestamp
+        uint_32     string         uint_32      string          int64
 
 //////////////
 

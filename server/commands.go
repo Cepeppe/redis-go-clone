@@ -38,6 +38,7 @@ func tryParseExecuteCommand(command_raw string) (string, error) {
 
 // Returns execution result (string) and error (=nil if no error)
 func executeCommand(cmd string, args string) (string, error) {
+
 	handler, ok := cmdHandlers[cmd]
 	if !ok || handler == nil {
 		return "NOT_OK", errors.New("unknown command: " + cmd)
@@ -46,10 +47,22 @@ func executeCommand(cmd string, args string) (string, error) {
 }
 
 func GET(args string) (string, error) {
-	return "", nil
+
+	key, _, ok := CutFirstToken(args)
+	if !ok {
+		return "NOT_OK", errors.New("command parsing error, missing KEY in GET")
+	}
+
+	value, exists := keyDataSpace[key]
+	if !exists {
+		return args + " :NO SUCH KEY IS PRESENT", errors.New("No such KEY is present: " + key)
+	}
+
+	return value, nil
 }
 
 func SET(args string) (string, error) {
+
 	return "", nil
 }
 

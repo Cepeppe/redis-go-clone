@@ -39,8 +39,8 @@ func handleClientServerRoutine(conn net.Conn) {
 		log.Printf("Redis clone server, received from %s: %s", conn.RemoteAddr(), line)
 
 		// Extract command token and arguments (separators: space or tab).
-		cmdTok, args, ok := cutFirstTokenSpaceTab(line)
-		if !ok {
+		cmdTok, _, ok := cutFirstTokenSpaceTab(line)
+		if ok!=nil {
 			// Malformed input; return a single-line error and continue.
 			_, _ = w.WriteString("ERR: empty command\n")
 			_ = w.Flush()
@@ -55,17 +55,11 @@ func handleClientServerRoutine(conn net.Conn) {
 		}
 
 		// Canonicalize command to upper-case for map lookup; arguments are kept as-is.
-		key := strings.ToUpper(cmdTok)
-		h, exists := cmdHandlers[key]
-		if !exists || h == nil {
-			// Unknown command; return a single-line error and continue.
-			_, _ = w.WriteString("ERR: unknown command: " + key + "\n")
-			_ = w.Flush()
-			continue
-		}
+		cmd_raw := strings.ToUpper(line)
 
 		// Execute handler; always reply with exactly one line.
-		res, execErr := h(args)
+		res, execErr := tryParseExecuteCommand(cmd_raw)
+
 		if execErr != nil {
 			_, _ = w.WriteString("ERR: " + execErr.Error() + "\n")
 		} else {
@@ -81,26 +75,4 @@ func handleClientServerRoutine(conn net.Conn) {
 			return
 		}
 	}
-}
-
-// cutFirstTokenSpaceTab splits s into first token and remainder using space or tab as separators.
-// Leading separators are skipped; trailing separators after the first token are consumed.
-// Returns (token, rest, true) on success; ("", s, false) if no token is found.
-func cutFirstTokenSpaceTab(s string) (string, string, bool) {
-	i, n := 0, len(s)
-	for i < n && (s[i] == ' ' || s[i] == '\t') {
-		i++
-	}
-	if i == n {
-		return "", s, false
-	}
-	j := i
-	for j < n && s[j] != ' ' && s[j] != '\t' {
-		j++
-	}
-	k := j
-	for k < n && (s[k] == ' ' || s[k] == '\t') {
-		k++
-	}
-	return s[i:j], s[k:], true
 }
