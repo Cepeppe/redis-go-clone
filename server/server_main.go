@@ -25,9 +25,10 @@ func main() {
 	//before returning close connection
 	defer tcp_listener.Close()
 
-	var conn net.Conn = nil
+	var conn net.Conn
 
 	log.Println("Redis clone server listening on " + SERVER_HOST)
+
 	// Accept incoming connection
 	for {
 		var err error = nil
@@ -36,13 +37,10 @@ func main() {
 			log.Println("Redis clone server, error accepting:", err.Error())
 			continue
 		}
-		break
+
+		log.Println("Redis clone server, accepted connection from:", conn.RemoteAddr())
+
+		// Handle the connection in a goroutine
+		go handleClientServerRoutine(conn)
 	}
-
-	log.Println("Redis clone server, accepted connection from:", conn.RemoteAddr())
-
-	// Handle the connection in a goroutine
-	go handleServerRoutine(conn)
-
-	// fmt.Println("Redis clone server stopping...")
 }

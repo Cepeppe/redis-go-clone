@@ -1,35 +1,106 @@
 package main
 
 import (
-	"fmt"
+	"bufio"
+	"io"
+	"log"
 	"net"
+	"strings"
 )
 
-func handleServerRoutine(conn net.Conn) {
+// handleClientServerRoutine processes one client connection using a simple line-based protocol.
+// Each client message is one line terminated by '\n'; the server replies with exactly one line.
+func handleClientServerRoutine(conn net.Conn) {
+	defer conn.Close()
 
-	defer conn.Close() // Close the connection when the handler finishes
+	r := bufio.NewReader(conn) // line reader for the socket
+	w := bufio.NewWriter(conn) // buffered writer for replies
 
 	for {
-		//Read data from the client
-		buffer := make([]byte, COMMAND_MAX_LEN)
-		n, err := conn.Read(buffer)
-
+		// Read exactly one line (blocks until '\n' or error).
+		line, err := r.ReadString('\n')
 		if err != nil {
-			fmt.Println("Redis clone server: error reading from conn channel", err.Error())
+			// Remote closed or transport error; terminate the handler.
+			if err == io.EOF {
+				log.Println("Redis clone server: connection interrupted from", conn.RemoteAddr())
+			} else {
+				log.Println("Redis clone server: read error from", conn.RemoteAddr(), ":", err)
+			}
+			return
+		}
 
-			//send back error message
-			conn.Write([]byte("Redis clone server: error in command reception"))
+		// Strip only the trailing line terminators; preserve internal whitespace.
+		line = strings.TrimRight(line, "\r\n")
+		if line == "" {
+			// Ignore empty lines and continue.
 			continue
 		}
 
-		fmt.Printf("Redis clone server, received from %s: %s\n", conn.RemoteAddr(), string(buffer[:n]))
+		log.Printf("Redis clone server, received from %s: %s", conn.RemoteAddr(), line)
 
-		//process command
-		_, err = conn.Write([]byte("..."))
+		// Extract command token and arguments (separators: space or tab).
+		cmdTok, args, ok := cutFirstTokenSpaceTab(line)
+		if !ok {
+			// Malformed input; return a single-line error and continue.
+			_, _ = w.WriteString("ERR: empty command\n")
+			_ = w.Flush()
+			continue
+		}
 
-		if err != nil {
-			fmt.Println("Redis clone server, error writing:", err)
+		// Handle explicit connection close request (case-insensitive).
+		if strings.EqualFold(cmdTok, "ESC") {
+			_, _ = w.WriteString("closing connection.\n")
+			_ = w.Flush()
+			return
+		}
+
+		// Canonicalize command to upper-case for map lookup; arguments are kept as-is.
+		key := strings.ToUpper(cmdTok)
+		h, exists := cmdHandlers[key]
+		if !exists || h == nil {
+			// Unknown command; return a single-line error and continue.
+			_, _ = w.WriteString("ERR: unknown command: " + key + "\n")
+			_ = w.Flush()
+			continue
+		}
+
+		// Execute handler; always reply with exactly one line.
+		res, execErr := h(args)
+		if execErr != nil {
+			_, _ = w.WriteString("ERR: " + execErr.Error() + "\n")
+		} else {
+			if res == "" {
+				// Provide a minimal positive acknowledgment when handler returns empty output.
+				res = "OK"
+			}
+			_, _ = w.WriteString(res + "\n")
+		}
+		// Flush the buffered writer to ensure the line is sent immediately.
+		if err := w.Flush(); err != nil {
+			log.Println("Redis clone server: write/flush error to", conn.RemoteAddr(), ":", err)
 			return
 		}
 	}
+}
+
+// cutFirstTokenSpaceTab splits s into first token and remainder using space or tab as separators.
+// Leading separators are skipped; trailing separators after the first token are consumed.
+// Returns (token, rest, true) on success; ("", s, false) if no token is found.
+func cutFirstTokenSpaceTab(s string) (string, string, bool) {
+	i, n := 0, len(s)
+	for i < n && (s[i] == ' ' || s[i] == '\t') {
+		i++
+	}
+	if i == n {
+		return "", s, false
+	}
+	j := i
+	for j < n && s[j] != ' ' && s[j] != '\t' {
+		j++
+	}
+	k := j
+	for k < n && (s[k] == ' ' || s[k] == '\t') {
+		k++
+	}
+	return s[i:j], s[k:], true
 }
