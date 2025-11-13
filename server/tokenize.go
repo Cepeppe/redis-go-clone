@@ -6,7 +6,7 @@ import (
 
 var (
 	// ErrNoToken is returned when no token is found (only leading spaces/tabs).
-	ErrNoToken = errors.New("no token")
+	ErrNoToken = errors.New("missing token")
 	// ErrMalformed is returned when the input looks like a token but is incomplete
 	// (e.g., unclosed string or unbalanced braces/brackets).
 	ErrMalformed = errors.New("malformed token")

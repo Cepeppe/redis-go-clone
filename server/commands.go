@@ -2,7 +2,11 @@ package main
 
 import (
 	"errors"
+	"log"
+	"math"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type Handler func(args string) (string, error)
@@ -28,9 +32,9 @@ func getConstantCommandsArray() []string {
 // Try parse and execute command, returns: result_str, err
 func tryParseExecuteCommand(command_raw string) (string, error) {
 
-	cmd, args, ok := CutFirstToken(command_raw)
-	if !ok {
-		return "NOT_OK", errors.New("command parsing error")
+	cmd, args, err := cutFirstTokenSpaceTab(command_raw)
+	if err != nil {
+		return "NOT_OK", errors.New("command parsing error: " + err.Error())
 	}
 
 	return executeCommand(cmd, args)
@@ -39,7 +43,7 @@ func tryParseExecuteCommand(command_raw string) (string, error) {
 // Returns execution result (string) and error (=nil if no error)
 func executeCommand(cmd string, args string) (string, error) {
 
-	handler, ok := cmdHandlers[cmd]
+	handler, ok := cmdHandlers[strings.ToUpper(cmd)]
 	if !ok || handler == nil {
 		return "NOT_OK", errors.New("unknown command: " + cmd)
 	}
@@ -48,14 +52,14 @@ func executeCommand(cmd string, args string) (string, error) {
 
 func GET(args string) (string, error) {
 
-	key, _, ok := CutFirstToken(args)
-	if !ok {
-		return "NOT_OK", errors.New("command parsing error, missing KEY in GET")
+	key, _, err := cutFirstTokenSpaceTab(args)
+	if err != nil {
+		return "NOT_OK", errors.New("command parsing error: " + err.Error())
 	}
 
 	value, exists := keyDataSpace[key]
 	if !exists {
-		return args + " :NO SUCH KEY IS PRESENT", errors.New("No such KEY is present: " + key)
+		return "NOT_OK", errors.New("No such KEY is present: " + key)
 	}
 
 	return value, nil
@@ -63,10 +67,57 @@ func GET(args string) (string, error) {
 
 func SET(args string) (string, error) {
 
+	var err error
+	key, args, err := cutFirstTokenSpaceTab(args)
+	if err != nil {
+		return "NOT_OK", errors.New("command parsing error: " + err.Error())
+	}
+
+	data, args, err := cutFirstTokenSmart(args)
+	if err != nil {
+		return "NOT_OK", errors.New("command parsing error: " + err.Error())
+	}
+
+	var expiration_sec int64 = -1
+	if args != "" {
+		exp, _, err := cutFirstTokenSpaceTab(args)
+		if err != nil {
+			return "NOT_OK", errors.New("command parsing error: " + err.Error())
+		}
+		log.Println(exp)
+		expiration_sec, err = strconv.ParseInt(exp, 10, 64)
+		if err != nil {
+			return "NOT_OK", errors.New("command parsing error: " + err.Error())
+		}
+		log.Println(expiration_sec)
+	}
+
+	var expire_at_ts int64 = math.MaxInt64
+	if expiration_sec == -1 {
+		expire_at_ts = math.MaxInt64
+	} else {
+		expire_at_ts = time.Now().UnixMilli() + expiration_sec*1000
+	}
+
+	keyDataSpace[key] = data
+	keyExpirations.PushItem(KeyExpiration{key: key, expire_timestamp: expire_at_ts})
+	//TODO: WRITE ON AOF
+
 	return "", nil
 }
 
 func DEL(args string) (string, error) {
+	/*
+		key, _, err := cutFirstTokenSpaceTab(args)
+		if err != nil {
+			return "NOT_OK", errors.New("command parsing error: " + err.Error())
+		}
+		delete(keyDataSpace, key)
+		keyExpirations.Pop()
+		//TODO: WRITE ON AOF
+
+		return "OK", nil
+	*/
 	return "", nil
 }
 
@@ -79,32 +130,7 @@ func PING(args string) (string, error) {
 }
 
 func HELP(args string) (string, error) {
-	return "", nil
-}
-
-// CutFirstToken returns (token, rest, ok).
-// Separators are space or tab. Leading separators are skipped.
-// On failure (empty or only separators) returns ("", s, false).
-// separatori: spazio, tab, CR, LF
-func CutFirstToken(s string) (string, string, bool) {
-	i, n := 0, len(s)
-	isSep := func(b byte) bool { return b == ' ' || b == '\t' || b == '\r' || b == '\n' }
-	for i < n && isSep(s[i]) {
-		i++
-	}
-	if i == n {
-		return "", s, false
-	}
-	j := i
-	for j < n && !isSep(s[j]) {
-		j++
-	}
-	tok := s[i:j]
-	k := j
-	for k < n && isSep(s[k]) {
-		k++
-	}
-	return tok, s[k:], true
+	return "cant help ya rn", nil
 }
 
 func canonCmd(s string) string {

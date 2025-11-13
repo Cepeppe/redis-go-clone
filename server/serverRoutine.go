@@ -40,7 +40,7 @@ func handleClientServerRoutine(conn net.Conn) {
 
 		// Extract command token and arguments (separators: space or tab).
 		cmdTok, _, ok := cutFirstTokenSpaceTab(line)
-		if ok!=nil {
+		if ok != nil {
 			// Malformed input; return a single-line error and continue.
 			_, _ = w.WriteString("ERR: empty command\n")
 			_ = w.Flush()
@@ -55,10 +55,10 @@ func handleClientServerRoutine(conn net.Conn) {
 		}
 
 		// Canonicalize command to upper-case for map lookup; arguments are kept as-is.
-		cmd_raw := strings.ToUpper(line)
 
 		// Execute handler; always reply with exactly one line.
-		res, execErr := tryParseExecuteCommand(cmd_raw)
+		res, execErr := tryParseExecuteCommand(line)
+		printMemoryStatus()
 
 		if execErr != nil {
 			_, _ = w.WriteString("ERR: " + execErr.Error() + "\n")

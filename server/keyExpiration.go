@@ -62,9 +62,10 @@ func (h *KeyExpirationMinHeap) Push(x any) {
 func (h *KeyExpirationMinHeap) Pop() any {
 	old := *h
 	n := len(old)
-	x := old[n-1]
-	*h = old[:n-1]
-	return x
+	item := old[n-1]     // Save the item to return
+	old[n-1] = KeyExpiration{} // Zero out the cell in the slice (crucial for GC)
+	*h = old[:n-1]     // Shorten the slice
+	return item          // Return the item
 }
 
 // Init transforms the underlying slice into a valid heap in O(n).
@@ -92,3 +93,4 @@ func (h *KeyExpirationMinHeap) PopMin() (KeyExpiration, bool) {
 	}
 	return heap.Pop(h).(KeyExpiration), true
 }
+
