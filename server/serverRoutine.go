@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+var last_rdb_snapshot_ts int64
+
 // handleClientServerRoutine processes one client connection using a simple line-based protocol.
 // Each client message is one line terminated by '\n'; the server replies with exactly one line.
 func handleClientServerRoutine(conn net.Conn) {

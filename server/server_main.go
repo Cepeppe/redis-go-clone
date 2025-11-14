@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net"
+	"time"
 )
 
 const SERVER_HOST = "127.0.0.1:6378" //port is 6378 because is one less of redis used port (6379)
@@ -18,6 +19,7 @@ func initDataStructures() {
 	initKeyExpirationMinHeap(&keyExpirations)
 	log.Println("Initialized key expiration data structure")
 	tryLoadRdbFile(RDB_FILE_PATH)
+	last_rdb_snapshot_ts = time.Now().UnixMilli()
 	log.Println("Loaded key-value data structure and keys expirations")
 	log.Println("Completed data structures initializations")
 }
@@ -39,9 +41,7 @@ func main() {
 	defer tcp_listener.Close()
 
 	var conn net.Conn
-
 	log.Println("Redis clone server listening on " + SERVER_HOST)
-
 	// Accept incoming connection
 	for {
 		var err error = nil

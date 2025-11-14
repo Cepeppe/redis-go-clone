@@ -7,12 +7,15 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 )
 
 var keyExpirations *KeyExpirationMinHeap
 
 // Here we store db data
 var keyDataSpace = map[string]string{}
+
+var dataLock sync.Mutex
 
 ////////////
 

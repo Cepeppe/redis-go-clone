@@ -107,18 +107,16 @@ func SET(args string) (string, error) {
 }
 
 func DEL(args string) (string, error) {
-	/*
-		key, _, err := cutFirstTokenSpaceTab(args)
-		if err != nil {
-			return "NOT_OK", errors.New("command parsing error: " + err.Error())
-		}
-		delete(keyDataSpace, key)
-		keyExpirations.Pop()
-		//TODO: WRITE ON AOF
+	key, _, err := cutFirstTokenSpaceTab(args)
+	if err != nil {
+		return "NOT_OK", errors.New("command parsing error: " + err.Error())
+	}
+	delete(keyDataSpace, key)
+	keyExpirations.Remove(key)
+	//TODO: WRITE ON AOF
 
-		return "OK", nil
-	*/
-	return "", nil
+	return "OK", nil
+	
 }
 
 func ESC(args string) (string, error) {
