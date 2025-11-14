@@ -24,9 +24,9 @@ func initKeyExpirationMinHeap(dst **KeyExpirationMinHeap) {
 		panic("EnsureKeyExpirationMinHeap: nil destination pointer")
 	}
 	if *dst == nil {
-		h := &KeyExpirationMinHeap{} // allocation
-		h.Init()                     // initialization
-		*dst = h
+		// Il costruttore NewKeyExpirationMinHeap() gestisce
+		// sia l'allocazione che l'inizializzazione.
+		*dst = NewKeyExpirationMinHeap()
 	}
 }
 
@@ -81,8 +81,8 @@ func tryLoadRdbFile(path string) error {
 
 		keyDataSpace[key] = value
 
-		//Don't add key to expiration data structure when expiration_ts is NO_EXP_TS
-		if key_exp_ts == NO_EXP_TS {
+		//Aggiungi la chiave alla heap di scadenza solo se ha un timestamp valido
+		if key_exp_ts != NO_EXP_TS {
 			keyExpirations.PushItem(KeyExpiration{key: key, expire_timestamp: key_exp_ts})
 		}
 	}
@@ -118,9 +118,9 @@ func printMemoryStatus() {
 		if n == 0 {
 			b.WriteString("  entries: []\n")
 		} else {
-			// Copy and sort by expire_timestamp without touching the live heap.
+			// Copy and sort by expire_timestamp
 			copySlice := make([]KeyExpiration, n)
-			copy(copySlice, *keyExpirations)
+			copy(copySlice, keyExpirations.items)
 			sort.Slice(copySlice, func(i, j int) bool {
 				return copySlice[i].expire_timestamp < copySlice[j].expire_timestamp
 			})
