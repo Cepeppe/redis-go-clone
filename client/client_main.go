@@ -50,7 +50,7 @@ func main() {
 			continue
 		}
 
-		// --- WRITE: send the line + '\n' with timeout ---
+		// WRITE: send the line + '\n' with timeout
 		if err := conn.SetWriteDeadline(time.Now().Add(IO_TIMEOUT)); err != nil {
 			log.Printf("set write deadline error: %v", err)
 			return
@@ -64,7 +64,7 @@ func main() {
 			return
 		}
 
-		// --- READ: read one response line (terminated by '\n') with timeout ---
+		// READ: read one response line (terminated by '\n') with timeout
 		if err := conn.SetReadDeadline(time.Now().Add(IO_TIMEOUT)); err != nil {
 			log.Printf("set read deadline error: %v", err)
 			return

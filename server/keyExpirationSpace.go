@@ -63,8 +63,7 @@ func NewKeyExpirationMinHeap() *KeyExpirationMinHeap {
 	}
 }
 
-// --- Begin heap.Interface implementation ---
-// Note: These methods are exported to satisfy heap.Interface,
+// These methods are exported to satisfy heap.Interface,
 // but they are non-locking and should not be called directly.
 // They are only intended to be called by the container/heap package
 // functions, which are wrapped by the locked Public API methods.
@@ -83,10 +82,10 @@ func (h *KeyExpirationMinHeap) Less(i, j int) bool {
 // Swap exchanges elements i and j, AND updates the index map.
 // Part of heap.Interface. (Non-locking)
 func (h *KeyExpirationMinHeap) Swap(i, j int) {
-	// 1. Swap items in the slice
+	// Swap items in the slice
 	h.items[i], h.items[j] = h.items[j], h.items[i]
 
-	// 2. Update the index map to reflect the swap
+	// Update the index map to reflect the swap
 	h.index[h.items[i].key] = i
 	h.index[h.items[j].key] = j
 }
@@ -98,11 +97,11 @@ func (h *KeyExpirationMinHeap) Push(x any) {
 	item := x.(KeyExpiration)
 	n := len(h.items)
 
-	// 3. Add the key to the index map, pointing to the *end* of the slice
+	// Add the key to the index map, pointing to the *end* of the slice
 	//    (The heap logic will call Swap to bubble it up, fixing the index)
 	h.index[item.key] = n
 
-	// 4. Append the item to the slice
+	// Append the item to the slice
 	h.items = append(h.items, item)
 }
 
@@ -116,7 +115,7 @@ func (h *KeyExpirationMinHeap) Pop() any {
 	old[n-1] = KeyExpiration{} // Zero out the cell in the slice (crucial for GC)
 	h.items = old[:n-1]        // Shorten the slice
 
-	// 5. Remove the item from the index map
+	// Remove the item from the index map
 	delete(h.index, item.key)
 
 	return item // Return the item
@@ -198,18 +197,18 @@ func (h *KeyExpirationMinHeap) Remove(key string) (KeyExpiration, bool) {
 // It returns false if the key does not exist in the heap.
 // This method is thread-safe.
 func (h *KeyExpirationMinHeap) UpdateExpiration(key string, newTimestamp int64) bool {
-    h.mu.Lock()
-    defer h.mu.Unlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
-    if existingIdx, ok := h.index[key]; ok {
-        // Key exists. Update the timestamp and "fix" the heap.
-        h.items[existingIdx].expire_timestamp = newTimestamp
-        heap.Fix(h, existingIdx) // Re-establish the heap invariant
-        return true
-    }
-    
-    // Key does not exist
-    return false
+	if existingIdx, ok := h.index[key]; ok {
+		// Key exists. Update the timestamp and "fix" the heap.
+		h.items[existingIdx].expire_timestamp = newTimestamp
+		heap.Fix(h, existingIdx) // Re-establish the heap invariant
+		return true
+	}
+
+	// Key does not exist
+	return false
 }
 
 // FindExpiration checks if a key exists in the heap and returns its expiration timestamp.
@@ -232,23 +231,23 @@ func (h *KeyExpirationMinHeap) FindExpiration(key string) (int64, bool) {
 // DeepCopy creates a complete, independent clone of the KeyExpirationMinHeap.
 // It acquires a read lock on the original structures to ensure a consistent snapshot.
 func (h *KeyExpirationMinHeap) DeepCopy() *KeyExpirationMinHeap {
-    h.mu.RLock() // Acquire read lock on the original heap
-    defer h.mu.RUnlock()
+	h.mu.RLock() // Acquire read lock on the original heap
+	defer h.mu.RUnlock()
 
-    // 1. Create the new heap structure
-    clonedHeap := NewKeyExpirationMinHeap()
+	// 1. Create the new heap structure
+	clonedHeap := NewKeyExpirationMinHeap()
 
-    // 2. Deep copy the items slice (The KeyExpiration struct values are copied by value)
-    clonedHeap.items = make([]KeyExpiration, len(h.items))
-    copy(clonedHeap.items, h.items)
+	// 2. Deep copy the items slice (The KeyExpiration struct values are copied by value)
+	clonedHeap.items = make([]KeyExpiration, len(h.items))
+	copy(clonedHeap.items, h.items)
 
-    // 3. Deep copy the index map (key -> index)
-    clonedHeap.index = make(map[string]int, len(h.index))
-    for key, idx := range h.index {
-        clonedHeap.index[key] = idx
-    }
-    
-    // Note: The new heap object created by NewKeyExpirationMinHeap already has
-    // its own zero-valued (fresh) mutex, ensuring independence.
-    return clonedHeap
+	// 3. Deep copy the index map (key -> index)
+	clonedHeap.index = make(map[string]int, len(h.index))
+	for key, idx := range h.index {
+		clonedHeap.index[key] = idx
+	}
+
+	// The new heap object created by NewKeyExpirationMinHeap already has
+	// its own zero-valued (fresh) mutex, ensuring independence.
+	return clonedHeap
 }

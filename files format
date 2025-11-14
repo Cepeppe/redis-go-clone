@@ -3,28 +3,3 @@
     key_byte_size    key     value_byte_size    value   expiration_timestamp
         uint_32     string         uint_32      string          int64
 
-
--append only file: plaint text
-
-    key_byte_size    key     value_byte_size    value   expiration_timestamp
-        uint_32     string         uint_32      string          int64
-
-//////////////
-
-commands appendonly file
-This is a plain text file
-append every valid primitive invoked by the user.
-This serves as an history of invoked primitives inside of a session
-
-appendonly file
-append status mutation in time of every data stored
-    i.e. When user calls a primitive that changes memory state at a specified key,
-            we append to the appendonly file a rapresentaation of that data new value
-
-rdb file(s?)
-this is the persistence file. It contains a permanent rapresentation of the db.
-It is updated on 
-
-/////////////
-
-

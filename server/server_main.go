@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	SERVER_HOST = "127.0.0.1:6378" //port is 6378 because is one less of redis used port (6379)
- 	COMMAND_MAX_LEN = 2048         //max number of runes for each command (and args)
+	SERVER_HOST     = "127.0.0.1:6378" //port is 6378 because is one less of redis used port (6379)
+	COMMAND_MAX_LEN = 2048             //max number of runes for each command (and args)
 )
 
 var last_rdb_snapshot_ts int64 // Last RDB snapshot timestamp in millis

@@ -100,7 +100,6 @@ func SET(args string) (string, error) {
 
 	keyDataSpace.Add(key, data)
 	keyExpirations.PushItem(KeyExpiration{key: key, expire_timestamp: expire_at_ts})
-	//TODO: WRITE ON AOF
 
 	return "", nil
 }
@@ -112,7 +111,6 @@ func DEL(args string) (string, error) {
 	}
 	keyDataSpace.Remove(key)
 	keyExpirations.Remove(key)
-	//TODO: WRITE ON AOF
 
 	return "OK", nil
 
@@ -157,7 +155,8 @@ func PING(args string) (string, error) {
 }
 
 func HELP(args string) (string, error) {
-	return "cant help ya rn", nil
+	// Remove the leading and trailing newlines/whitespace from the raw string literal
+	return "See README.md on github repo: https://github.com/Cepeppe/redis-go-clone/", nil
 }
 
 func canonCmd(s string) string {
