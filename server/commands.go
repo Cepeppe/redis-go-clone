@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"log"
 	"math"
 	"strconv"
 	"strings"
@@ -12,12 +11,13 @@ import (
 type Handler func(args string) (string, error)
 
 var cmdHandlers = map[string]Handler{
-	"GET":  GET,
-	"SET":  SET,
-	"DEL":  DEL,
-	"ESC":  ESC,
-	"PING": PING,
-	"HELP": HELP,
+	"GET":    GET,
+	"SET":    SET,
+	"DEL":    DEL,
+	"SETEXP": SETEXP,
+	"ESC":    ESC,
+	"PING":   PING,
+	"HELP":   HELP,
 }
 
 func getConstantCommandsArray() []string {
@@ -57,7 +57,7 @@ func GET(args string) (string, error) {
 		return "NOT_OK", errors.New("command parsing error: " + err.Error())
 	}
 
-	value, exists := keyDataSpace[key]
+	value, exists := keyDataSpace.Get(key)
 	if !exists {
 		return "NOT_OK", errors.New("No such KEY is present: " + key)
 	}
@@ -84,12 +84,11 @@ func SET(args string) (string, error) {
 		if err != nil {
 			return "NOT_OK", errors.New("command parsing error: " + err.Error())
 		}
-		log.Println(exp)
+
 		expiration_sec, err = strconv.ParseInt(exp, 10, 64)
 		if err != nil {
 			return "NOT_OK", errors.New("command parsing error: " + err.Error())
 		}
-		log.Println(expiration_sec)
 	}
 
 	var expire_at_ts int64 = math.MaxInt64
@@ -99,7 +98,7 @@ func SET(args string) (string, error) {
 		expire_at_ts = time.Now().UnixMilli() + expiration_sec*1000
 	}
 
-	keyDataSpace[key] = data
+	keyDataSpace.Add(key, data)
 	keyExpirations.PushItem(KeyExpiration{key: key, expire_timestamp: expire_at_ts})
 	//TODO: WRITE ON AOF
 
@@ -111,12 +110,42 @@ func DEL(args string) (string, error) {
 	if err != nil {
 		return "NOT_OK", errors.New("command parsing error: " + err.Error())
 	}
-	delete(keyDataSpace, key)
+	keyDataSpace.Remove(key)
 	keyExpirations.Remove(key)
 	//TODO: WRITE ON AOF
 
 	return "OK", nil
-	
+
+}
+
+func SETEXP(args string) (string, error) {
+	var expiration_sec int64
+
+	key, remaining, err := cutFirstTokenSpaceTab(args)
+	if err != nil {
+		return "NOT_OK", errors.New("command parsing error: " + err.Error())
+	}
+
+	if remaining != "" {
+		exp, _, err := cutFirstTokenSpaceTab(remaining)
+		if err != nil {
+			return "NOT_OK", errors.New("command parsing error: " + err.Error())
+		}
+
+		expiration_sec, err = strconv.ParseInt(exp, 10, 64)
+		if err != nil {
+			return "NOT_OK", errors.New("command parsing error: " + err.Error())
+		}
+	}
+
+	expire_at_ts := time.Now().UnixMilli() + expiration_sec*1000
+	exists := keyExpirations.UpdateExpiration(key, expire_at_ts)
+
+	if !exists {
+		return "NOT_OK", errors.New("you tried to update expiration for a non existing key")
+	}
+
+	return "OK", nil
 }
 
 func ESC(args string) (string, error) {

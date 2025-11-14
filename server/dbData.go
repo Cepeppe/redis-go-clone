@@ -1,23 +1,11 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"io"
-	"os"
 	"sort"
 	"strings"
-	"sync"
 )
 
-var keyExpirations *KeyExpirationMinHeap
-
-// Here we store db data
-var keyDataSpace = map[string]string{}
-
-var dataLock sync.Mutex
-
-////////////
 
 // EnsureKeyExpirationMinHeap allocates and initializes the heap if nil.
 // If *dst is already non-nil, it leaves it unchanged.
@@ -33,64 +21,21 @@ func initKeyExpirationMinHeap(dst **KeyExpirationMinHeap) {
 	}
 }
 
-// tryLoadRdbFile attempts to load an RDB file located at the given path.
-// Initializes keys expirations when exp_ts != NO_EXP_TS
-// Behavior:
-// - If the file does not exist: return nil (nothing to load).
-// - If the path is not a regular file: return an error.
-// - If the file is empty: return nil.
-// - Otherwise: open the file, run the existing processing, and return any error produced.
-func tryLoadRdbFile(path string) error {
-
-	// Verify existence and type.
-	fi, err := os.Stat(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			// File missing: nothing to load, not an error.
-			// Create file and return
-			os.Create(path)
-			return nil
-		}
-		// Other stat error: propagate.
-		return err
+// initKeyDataSpace safely initializes a *KeyDataSpace pointer if it is currently nil.
+//
+// The function takes a pointer to a pointer to KeyDataSpace (**KeyDataSpace)
+// which allows it to modify the pointer variable in the calling scope.
+func initKeyDataSpace(dst **KeyDataSpace) {
+	if dst == nil {
+		// Defensive check: a nil destination pointer means the caller passed 'nil' 
+		// where an address (e.g., &myKeyDataSpace) was expected. This is a programmer error.
+		panic("KeyDataSpace: nil destination pointer")
 	}
-	if !fi.Mode().IsRegular() {
-		return fmt.Errorf("path is not a regular file: %s", path)
+	// Check if the actual *KeyDataSpace pointer (the value pointed to by dst) is nil.
+	if *dst == nil {
+		// Initialize the pointer in the calling scope with a new instance.
+		*dst = NewKeyDataSpace()
 	}
-	if fi.Size() == 0 {
-		// Empty file: nothing to load.
-		return nil
-	}
-
-	// Open the file.
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	for {
-		key, value, key_exp_ts, err := readRdbEntry(f)
-
-		if err != nil {
-			if err == io.EOF {
-				//end of file reached
-				break
-			}
-
-			// unexpected error
-			return err
-		}
-
-		keyDataSpace[key] = value
-
-		//Aggiungi la chiave alla heap di scadenza solo se ha un timestamp valido
-		if key_exp_ts != NO_EXP_TS {
-			keyExpirations.PushItem(KeyExpiration{key: key, expire_timestamp: key_exp_ts})
-		}
-	}
-
-	return nil
 }
 
 // printMemoryStatus builds a human-readable snapshot of in-memory structures,
@@ -145,16 +90,16 @@ func printMemoryStatus() {
 
 	// --- Map section ---
 	b.WriteString("KeyDataSpace (map[string]string):\n")
-	if keyDataSpace == nil {
+	if !keyDataSpace.IsInitialized() {
 		b.WriteString("  state: nil\n")
 	} else {
-		b.WriteString(fmt.Sprintf("  size: %d\n", len(keyDataSpace)))
-		if len(keyDataSpace) == 0 {
+		b.WriteString(fmt.Sprintf("  size: %d\n", keyDataSpace.Length()))
+		if keyDataSpace.Length() == 0 {
 			b.WriteString("  entries: {}\n")
 		} else {
 			// Collect and sort keys for deterministic output.
-			keys := make([]string, 0, len(keyDataSpace))
-			for k := range keyDataSpace {
+			keys := make([]string, 0, keyDataSpace.Length())
+			for k := range keyDataSpace.data {
 				keys = append(keys, k)
 			}
 			sort.Strings(keys)
@@ -166,7 +111,7 @@ func printMemoryStatus() {
 			b.WriteString("  entries (sorted by key):\n")
 			for i := 0; i < limit; i++ {
 				k := keys[i]
-				v := keyDataSpace[k]
+				v, _ := keyDataSpace.Get(k)
 				b.WriteString(fmt.Sprintf("    - %q: %q\n", k, v))
 			}
 			if len(keys) > limit {

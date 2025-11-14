@@ -51,6 +51,9 @@ type KeyExpirationMinHeap struct {
 	mu    sync.RWMutex    // Protects items and index
 }
 
+// Data structure containing key expirations
+var keyExpirations *KeyExpirationMinHeap
+
 // NewKeyExpirationMinHeap creates a new, empty heap ready for use.
 func NewKeyExpirationMinHeap() *KeyExpirationMinHeap {
 	return &KeyExpirationMinHeap{
@@ -188,4 +191,64 @@ func (h *KeyExpirationMinHeap) Remove(key string) (KeyExpiration, bool) {
 	}
 	var zero KeyExpiration
 	return zero, false
+}
+
+// UpdateExpiration updates the timestamp for an EXISTING key.
+// It returns true if the key was found and updated.
+// It returns false if the key does not exist in the heap.
+// This method is thread-safe.
+func (h *KeyExpirationMinHeap) UpdateExpiration(key string, newTimestamp int64) bool {
+    h.mu.Lock()
+    defer h.mu.Unlock()
+
+    if existingIdx, ok := h.index[key]; ok {
+        // Key exists. Update the timestamp and "fix" the heap.
+        h.items[existingIdx].expire_timestamp = newTimestamp
+        heap.Fix(h, existingIdx) // Re-establish the heap invariant
+        return true
+    }
+    
+    // Key does not exist
+    return false
+}
+
+// FindExpiration checks if a key exists in the heap and returns its expiration timestamp.
+// Returns (timestamp, true) if found, or (NO_EXP_TS, false) otherwise.
+// This method is thread-safe and runs in O(1) time.
+func (h *KeyExpirationMinHeap) FindExpiration(key string) (int64, bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	if idx, ok := h.index[key]; ok {
+		// Key is present. Fetch the expiration timestamp from the items slice
+		// using the index found in the map.
+		return h.items[idx].expire_timestamp, true
+	}
+
+	// Key not found.
+	return NO_EXP_TS, false
+}
+
+// DeepCopy creates a complete, independent clone of the KeyExpirationMinHeap.
+// It acquires a read lock on the original structures to ensure a consistent snapshot.
+func (h *KeyExpirationMinHeap) DeepCopy() *KeyExpirationMinHeap {
+    h.mu.RLock() // Acquire read lock on the original heap
+    defer h.mu.RUnlock()
+
+    // 1. Create the new heap structure
+    clonedHeap := NewKeyExpirationMinHeap()
+
+    // 2. Deep copy the items slice (The KeyExpiration struct values are copied by value)
+    clonedHeap.items = make([]KeyExpiration, len(h.items))
+    copy(clonedHeap.items, h.items)
+
+    // 3. Deep copy the index map (key -> index)
+    clonedHeap.index = make(map[string]int, len(h.index))
+    for key, idx := range h.index {
+        clonedHeap.index[key] = idx
+    }
+    
+    // Note: The new heap object created by NewKeyExpirationMinHeap already has
+    // its own zero-valued (fresh) mutex, ensuring independence.
+    return clonedHeap
 }

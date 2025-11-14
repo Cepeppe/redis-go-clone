@@ -6,9 +6,8 @@ import (
 	"log"
 	"net"
 	"strings"
+	"time"
 )
-
-var last_rdb_snapshot_ts int64
 
 // handleClientServerRoutine processes one client connection using a simple line-based protocol.
 // Each client message is one line terminated by '\n'; the server replies with exactly one line.
@@ -76,5 +75,56 @@ func handleClientServerRoutine(conn net.Conn) {
 			log.Println("Redis clone server: write/flush error to", conn.RemoteAddr(), ":", err)
 			return
 		}
+	}
+}
+
+func handleKeysExpirationGoRoutine() {
+	for {
+		keyExp, has_elements := keyExpirations.Peek()
+
+		if !has_elements {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		log.Println("keysExpirationGoRoutine running...")
+
+		if time.Now().UnixMilli() >= keyExp.expire_timestamp {
+			log.Println("Removing expired key:", keyExp.key)
+			keyDataSpace.Remove(keyExp.key)
+			keyExpirations.PopMin()
+		} else {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+	}
+}
+
+// rdbSnapshotGoRoutine periodically takes a consistent snapshot of the in-memory
+// key/data and key/expiration spaces and persists them to disk.
+func rdbSnapshotGoRoutine() {
+	// Create a Ticker that sends a signal to its channel every RDB_SNAPSHOT_INTERVAL.
+	// (idiomatic Go way to handle fixed-interval periodic tasks, ensuring efficient, non-blocking waits)
+	ticker := time.NewTicker(RDB_SNAPSHOT_INTERVAL)
+
+	// Ensure the ticker is stopped when the function exits (e.g., if the application shuts down).
+	defer ticker.Stop()
+
+	// The loop blocks on 'ticker.C', waiting for the next interval to elapse.
+	for range ticker.C {
+		log.Println("Starting RDB snaphsot execution..")
+
+		// Create consistent deep copies of the in-memory data structures.
+		// DeepCopy methods should acquire read locks (RLock) on the original structures
+		// to ensure a consistent, crash-safe snapshot of the data at that moment.
+		copyOfKeyDataSpace := keyDataSpace.DeepCopy()
+		copyOfKeyExpirationSpace := keyExpirations.DeepCopy()
+
+		// Save the copied data to the RDB file (this is the I/O operation).
+		// This function should handle serialization and file writing.
+		saveRDBFile(RDB_FILE_PATH, copyOfKeyDataSpace, copyOfKeyExpirationSpace)
+
+		// Record the time when the snapshot finished.
+		// This timestamp reflects the moment the persistent state was established.
+		last_rdb_snapshot_ts = time.Now().UnixMilli()
 	}
 }

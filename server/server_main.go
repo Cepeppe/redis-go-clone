@@ -6,21 +6,22 @@ import (
 	"time"
 )
 
-const SERVER_HOST = "127.0.0.1:6378" //port is 6378 because is one less of redis used port (6379)
-const COMMAND_MAX_LEN = 2048         //max number of runes for each command (and args)
-const RDB_FILE_PATH = "rdb.bin"
+const (
+	SERVER_HOST = "127.0.0.1:6378" //port is 6378 because is one less of redis used port (6379)
+ 	COMMAND_MAX_LEN = 2048         //max number of runes for each command (and args)
+)
 
-/*
-	A SINGLE CLIENT INSTANCE FOR EACH SERVER INSTANCE
-*/
+var last_rdb_snapshot_ts int64 // Last RDB snapshot timestamp in millis
 
 func initDataStructures() {
 	log.Println("Initializing memorization data structures..")
 	initKeyExpirationMinHeap(&keyExpirations)
 	log.Println("Initialized key expiration data structure")
+	initKeyDataSpace(&keyDataSpace)
+	log.Println("Initialized key data space")
 	tryLoadRdbFile(RDB_FILE_PATH)
 	last_rdb_snapshot_ts = time.Now().UnixMilli()
-	log.Println("Loaded key-value data structure and keys expirations")
+	log.Println("Loaded key-value data structure and keys expirations data structure")
 	log.Println("Completed data structures initializations")
 }
 
@@ -39,6 +40,12 @@ func main() {
 
 	//before returning close connection
 	defer tcp_listener.Close()
+
+	// Run keys expiration process
+	go handleKeysExpirationGoRoutine()
+
+	// Run rdb napshot process
+	go rdbSnapshotGoRoutine()
 
 	var conn net.Conn
 	log.Println("Redis clone server listening on " + SERVER_HOST)
